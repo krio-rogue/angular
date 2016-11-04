@@ -122,6 +122,40 @@ describe('GatedScope', function() {
     expect(counter).toEqual(6);
   });
 
+  it('should only evaluate gated watches on scope whose digest was invoked', function() {
+    var gateClosed = false;
+
+    var childA = $rootScope.$new();
+    childA.$addWatcherGate(function() {
+      return !gateClosed;
+    });
+
+    var childB = childA.$new();
+
+    var counter = 0;
+    var watchedVal = 1;
+    function watcher() {
+      ++counter;
+      return watchedVal;
+    }
+
+    childA.$watch(watcher);
+    childB.$watch(watcher);
+
+    childB.$digest();
+
+    // Only the watcher on B should fire since we invoked its digest.
+    expect(counter).toEqual(2);
+
+    counter = 0;
+    watchedValue = 2;
+    
+    childA.$digest();
+    // Both watches should evaluate twice (twice since the first time
+    // will indicate it is is dirty).
+    expect(counter).toEqual(4);
+  });
+
   it('should only evaluate gated watchers for gating function that returned true', function() {
     var counter1 = 0;
     function watcher1() {
@@ -277,5 +311,56 @@ describe('GatedScope', function() {
 
     // When both gates are down, the watcher should not be evaluated.
     $rootScope.$digest();
+  });
+
+  it('should evaluate new watchers when gating function has shouldEvalNewWatchers = true', function() {
+    var gateClosed = false;
+
+    var child = $rootScope.$new();
+    child.$addWatcherGate(function() {
+      return !gateClosed;
+    }, null, true);
+
+    $rootScope.$digest();
+
+    gateClosed = true;
+
+    var counter = 0;
+    var watchedVal = 1;
+    function watcher() {
+      ++counter;
+      return watchedVal;
+    }
+
+    child.$watch(watcher);
+    $rootScope.$digest();
+
+    // Should have been evaluated twice, one for the first dirty cycle, and then for
+    // cycle it was not dirty on.
+    expect(counter).toEqual(2);
+  });
+
+  it('should not evaluate new watchers when gating function has shouldEvalNewWatchers = false', function() {
+    var gateClosed = false;
+
+    var child = $rootScope.$new();
+    child.$addWatcherGate(function() {
+      return !gateClosed;
+    }, null, false);
+
+    $rootScope.$digest();
+
+    gateClosed = true;
+    var counter = 0;
+    var watchedVal = 1;
+    function watcher() {
+      ++counter;
+      return watchedVal;
+    }
+
+    child.$watch(watcher);
+    $rootScope.$digest();
+
+    expect(counter).toEqual(0);
   });
 });
